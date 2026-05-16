@@ -2,14 +2,6 @@ from rules import RA
 
 
 def rank_day_difficulty(requirements):
-    """
-    Higher reserve requirement = harder day to hold off.
-
-    Returns:
-    - 1 = easiest day off
-    - num_days = hardest day off
-    """
-
     sorted_days = sorted(
         range(len(requirements)),
         key=lambda i: requirements[i]
@@ -24,11 +16,6 @@ def rank_day_difficulty(requirements):
 
 
 def seniority_percentile(seniority_rank, total_reserves):
-    """
-    0.0 = most senior
-    1.0 = most junior
-    """
-
     seniority_rank = max(1, int(seniority_rank))
     total_reserves = max(1, int(total_reserves))
 
@@ -41,58 +28,78 @@ def seniority_percentile(seniority_rank, total_reserves):
     return (seniority_rank - 1) / (total_reserves - 1)
 
 
+def off_indexes(pattern):
+    return [i for i, day in enumerate(pattern) if day != RA]
+
+
+def off_block_lengths(pattern):
+    lengths = []
+    i = 0
+
+    while i < len(pattern):
+        if pattern[i] != RA:
+            count = 0
+            while i < len(pattern) and pattern[i] != RA:
+                count += 1
+                i += 1
+            lengths.append(count)
+        else:
+            i += 1
+
+    return lengths
+
+
+def weekend_off_count(pattern, dates):
+    return sum(
+        1 for i, day in enumerate(pattern)
+        if day != RA and dates[i].weekday() in (5, 6)
+    )
+
+
+def weekday_off_count(pattern, dates):
+    return sum(
+        1 for i, day in enumerate(pattern)
+        if day != RA and dates[i].weekday() in (0, 1, 2, 3, 4)
+    )
+
+
 def strategy_score_pattern(pattern, requirements, seniority_rank, total_reserves):
     """
-    Used by the Generate Bids tool.
+    Used by Generate Bids as the default strategy ranking.
 
     Lower score = better strategic bid to REQUEST.
-
-    This is preference/strategy based:
-    - More senior users can aim for harder/high-value days off.
-    - More junior users are pushed toward easier/more realistic days.
     """
-
     difficulty_ranks = rank_day_difficulty(requirements)
     seniority = seniority_percentile(seniority_rank, total_reserves)
     num_days = len(requirements)
 
-    # Most senior target = hardest days.
-    # Most junior target = easiest days.
     target_rank = 1 + ((1 - seniority) * (num_days - 1))
 
-    off_ranks = [
+    ranks = [
         difficulty_ranks[i]
         for i, day in enumerate(pattern)
         if day != RA
     ]
 
-    if not off_ranks:
+    if not ranks:
         return 999999999
 
-    average_rank = sum(off_ranks) / len(off_ranks)
-    hardest_rank = max(off_ranks)
+    average_rank = sum(ranks) / len(ranks)
+    hardest_rank = max(ranks)
 
     score = 0
-
-    # Main strategy: match the bid's overall difficulty to the user's seniority.
     score += abs(average_rank - target_rank) ** 2 * 100
 
-    for rank in off_ranks:
-        # Penalize days far from the strategic target.
+    for rank in ranks:
         score += abs(rank - target_rank) ** 2
 
-        # Junior users get punished heavily for asking too hard.
         if rank > target_rank:
             score += ((rank - target_rank) ** 3) * (1 + seniority * 25)
 
-        # Senior users should not be shown only easy bids.
         if rank < target_rank:
             score += ((target_rank - rank) ** 2) * (1 - seniority) * 10
 
-    # Very junior users should avoid one-off very hard days.
     score += hardest_rank * seniority * 20
-
-    # Senior users should favor stronger/harder bids.
     score -= average_rank * (1 - seniority) * 50
 
     return score
@@ -100,17 +107,10 @@ def strategy_score_pattern(pattern, requirements, seniority_rank, total_reserves
 
 def award_score_pattern(pattern, requirements, seniority_rank, total_reserves):
     """
-    Used by the Manual Checker.
+    Used by Manual Checker.
 
-    Lower score = mathematically easier/stronger bid to be AWARDED.
-
-    This is not about what a senior person might want.
-    It measures raw award strength:
-    - Easy days are always easier to win.
-    - Hard days are always harder to win.
-    - Junior seniority makes hard days more damaging.
+    Lower score = mathematically easier/stronger bid to be awarded.
     """
-
     difficulty_ranks = rank_day_difficulty(requirements)
     seniority = seniority_percentile(seniority_rank, total_reserves)
 
@@ -122,23 +122,14 @@ def award_score_pattern(pattern, requirements, seniority_rank, total_reserves):
 
         day_rank = difficulty_ranks[i]
 
-        # Base difficulty for everyone.
         score += day_rank
-
-        # Junior penalty for hard days.
         score += (day_rank ** 2) * seniority
-
-        # Extra penalty for very junior users on the hardest days.
         score += (day_rank ** 3) * (seniority ** 2) * 0.05
 
     return score
 
 
 def sort_strategy_patterns(patterns, requirements, seniority_rank, total_reserves):
-    """
-    Sorts bids for the Generate Bids tool.
-    """
-
     return sorted(
         patterns,
         key=lambda pattern: strategy_score_pattern(
@@ -151,10 +142,6 @@ def sort_strategy_patterns(patterns, requirements, seniority_rank, total_reserve
 
 
 def sort_award_patterns(patterns, requirements, seniority_rank, total_reserves):
-    """
-    Sorts bids for the Manual Checker.
-    """
-
     return sorted(
         patterns,
         key=lambda pattern: award_score_pattern(
@@ -166,13 +153,74 @@ def sort_award_patterns(patterns, requirements, seniority_rank, total_reserves):
     )
 
 
+def sort_patterns_by_preference(
+    patterns,
+    requirements,
+    seniority_rank,
+    total_reserves,
+    dates,
+    preference
+):
+    """
+    Sorting preferences are not legal rules.
+    They only reorder already-legal unique off-day bids.
+    """
+
+    if preference == "Best chance / seniority strategy":
+        return sort_strategy_patterns(
+            patterns,
+            requirements,
+            seniority_rank,
+            total_reserves
+        )
+
+    if preference == "Most weekends off":
+        return sorted(
+            patterns,
+            key=lambda pattern: (
+                -weekend_off_count(pattern, dates),
+                strategy_score_pattern(pattern, requirements, seniority_rank, total_reserves)
+            )
+        )
+
+    if preference == "Most weekdays off":
+        return sorted(
+            patterns,
+            key=lambda pattern: (
+                -weekday_off_count(pattern, dates),
+                strategy_score_pattern(pattern, requirements, seniority_rank, total_reserves)
+            )
+        )
+
+    if preference == "Longest off blocks":
+        return sorted(
+            patterns,
+            key=lambda pattern: (
+                -max(off_block_lengths(pattern), default=0),
+                -sum(off_block_lengths(pattern)),
+                strategy_score_pattern(pattern, requirements, seniority_rank, total_reserves)
+            )
+        )
+
+    if preference == "Shortest off blocks":
+        return sorted(
+            patterns,
+            key=lambda pattern: (
+                max(off_block_lengths(pattern), default=0),
+                sum(length ** 2 for length in off_block_lengths(pattern)),
+                strategy_score_pattern(pattern, requirements, seniority_rank, total_reserves)
+            )
+        )
+
+    return sort_strategy_patterns(
+        patterns,
+        requirements,
+        seniority_rank,
+        total_reserves
+    )
+
+
 def chance_label_for_displayed_order(result_rank, displayed_total):
-    """
-    Used for generated bid results.
-
-    This describes where a bid sits among the bids currently displayed.
-    """
-
     if displayed_total <= 0:
         return "Unknown", "No displayed bid comparison available."
 

@@ -71,11 +71,29 @@ def validate_carryover(pattern, previous_type, previous_block_length):
     return True
 
 
-def generate_all_patterns(
-    num_days,
-    previous_type=None,
-    previous_block_length=0
-):
+def off_day_key(pattern):
+    return tuple(i for i, day in enumerate(pattern) if day != RA)
+
+
+def unique_off_day_patterns(patterns):
+    """
+    Collapse duplicate bids that have the same 12 off dates.
+    Keeps the first legal FD/GD assignment found for display.
+    """
+    seen = set()
+    unique = []
+
+    for pattern in patterns:
+        key = off_day_key(pattern)
+
+        if key not in seen:
+            seen.add(key)
+            unique.append(pattern)
+
+    return unique
+
+
+def generate_all_patterns(num_days, previous_type=None, previous_block_length=0):
     legal_patterns = []
     off_blocks = make_off_blocks()
 
@@ -136,6 +154,16 @@ def generate_all_patterns(
     backtrack([], "OFF", 0, 0)
 
     return legal_patterns
+
+
+def generate_unique_off_day_patterns(num_days, previous_type=None, previous_block_length=0):
+    patterns = generate_all_patterns(
+        num_days,
+        previous_type=previous_type,
+        previous_block_length=previous_block_length
+    )
+
+    return unique_off_day_patterns(patterns)
 
 
 def filter_patterns_by_requested_off_dates(patterns, requested_indexes):
