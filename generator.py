@@ -1,13 +1,27 @@
-from rules import RA, GD, FD, validate_pattern
+from rules import (
+    RA,
+    GD,
+    FD,
+    REQUIRED_GD_DAYS,
+    REQUIRED_FD_DAYS,
+    MIN_RA_BLOCK,
+    MAX_RA_BLOCK,
+    MIN_OFF_BLOCK,
+    MAX_OFF_BLOCK,
+    MAX_FD_AFTER_SHORT_RA_BLOCK,
+    MAX_FD_AFTER_FIVE_RA_BLOCK,
+    MAX_FD_AFTER_SIX_RA_BLOCK,
+    validate_pattern,
+)
 
 
-def make_off_blocks(max_len=8):
+def make_off_blocks(max_len=MAX_OFF_BLOCK):
     blocks = []
 
-    for length in range(2, max_len + 1):
+    for length in range(MIN_OFF_BLOCK, max_len + 1):
         blocks.append([GD] * length)
 
-        for fd_count in range(1, min(2, length - 1) + 1):
+        for fd_count in range(1, min(MAX_FD_AFTER_SHORT_RA_BLOCK, length - 1) + 1):
             gd_count = length - fd_count
             blocks.append([FD] * fd_count + [GD] * gd_count)
 
@@ -16,11 +30,11 @@ def make_off_blocks(max_len=8):
 
 def fd_allowed_after_ra_block(ra_len, fd_count):
     if ra_len in (3, 4):
-        return fd_count <= 2
+        return fd_count <= MAX_FD_AFTER_SHORT_RA_BLOCK
     if ra_len == 5:
-        return fd_count <= 1
+        return fd_count <= MAX_FD_AFTER_FIVE_RA_BLOCK
     if ra_len == 6:
-        return fd_count == 0
+        return fd_count == MAX_FD_AFTER_SIX_RA_BLOCK
     return False
 
 
@@ -49,22 +63,22 @@ def validate_carryover(pattern, previous_type, previous_block_length):
         return False
 
     if previous_type == "ON days":
-        if not (3 <= previous_block_length <= 6):
+        if not (MIN_RA_BLOCK <= previous_block_length <= MAX_RA_BLOCK):
             return False
 
         if pattern[0] == RA:
             current_start_ra = starting_block_length(pattern, "RA")
-            return previous_block_length + current_start_ra <= 6
+            return previous_block_length + current_start_ra <= MAX_RA_BLOCK
 
         return True
 
     if previous_type == "OFF days":
-        if not (2 <= previous_block_length <= 8):
+        if not (MIN_OFF_BLOCK <= previous_block_length <= MAX_OFF_BLOCK):
             return False
 
         if pattern[0] in (GD, FD):
             current_start_off = starting_block_length(pattern, "OFF")
-            return previous_block_length + current_start_off <= 8
+            return previous_block_length + current_start_off <= MAX_OFF_BLOCK
 
         return True
 
@@ -101,11 +115,11 @@ def generate_all_patterns(num_days, previous_type=None, previous_block_length=0)
         if len(pattern) > num_days:
             return
 
-        if gd_used > 8 or fd_used > 4:
+        if gd_used > REQUIRED_GD_DAYS or fd_used > REQUIRED_FD_DAYS:
             return
 
         if len(pattern) == num_days:
-            if gd_used == 8 and fd_used == 4 and validate_pattern(pattern):
+            if gd_used == REQUIRED_GD_DAYS and fd_used == REQUIRED_FD_DAYS and validate_pattern(pattern):
                 if previous_type is None or validate_carryover(
                     pattern,
                     previous_type,
@@ -117,7 +131,7 @@ def generate_all_patterns(num_days, previous_type=None, previous_block_length=0)
         remaining = num_days - len(pattern)
 
         if next_block_type == "RA":
-            for ra_len in range(3, 7):
+            for ra_len in range(MIN_RA_BLOCK, MAX_RA_BLOCK + 1):
                 if ra_len <= remaining:
                     backtrack(
                         pattern + [RA] * ra_len,

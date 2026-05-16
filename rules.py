@@ -2,6 +2,19 @@ RA = "RA"
 GD = "GD"
 FD = "FD"
 
+REQUIRED_GD_DAYS = 8
+REQUIRED_FD_DAYS = 4
+TOTAL_OFF_DAYS = REQUIRED_GD_DAYS + REQUIRED_FD_DAYS
+
+MIN_RA_BLOCK = 3
+MAX_RA_BLOCK = 6
+MIN_OFF_BLOCK = 2
+MAX_OFF_BLOCK = 8
+
+MAX_FD_AFTER_SHORT_RA_BLOCK = 2
+MAX_FD_AFTER_FIVE_RA_BLOCK = 1
+MAX_FD_AFTER_SIX_RA_BLOCK = 0
+
 
 def is_off(day):
     return day in (GD, FD)
@@ -18,10 +31,10 @@ def validate_pattern_with_reasons(pattern):
         reasons.append("Pattern is empty.")
         return False, reasons
 
-    if count_days(pattern, GD) != 8:
+    if count_days(pattern, GD) != REQUIRED_GD_DAYS:
         reasons.append(f"Must have exactly 8 GD. This pattern has {count_days(pattern, GD)}.")
 
-    if count_days(pattern, FD) != 4:
+    if count_days(pattern, FD) != REQUIRED_FD_DAYS:
         reasons.append(f"Must have exactly 4 FD. This pattern has {count_days(pattern, FD)}.")
 
     if pattern[0] == FD:
@@ -43,7 +56,7 @@ def validate_pattern_with_reasons(pattern):
                 count += 1
                 i += 1
 
-            if not (3 <= count <= 6):
+            if not (MIN_RA_BLOCK <= count <= MAX_RA_BLOCK):
                 reasons.append(
                     f"ON block from day {start + 1} to day {i} is {count} days. ON blocks must be 3–6 days."
                 )
@@ -59,7 +72,7 @@ def validate_pattern_with_reasons(pattern):
                 block.append(pattern[i])
                 i += 1
 
-            if not (2 <= len(block) <= 8):
+            if not (MIN_OFF_BLOCK <= len(block) <= MAX_OFF_BLOCK):
                 reasons.append(
                     f"OFF block from day {start + 1} to day {i} is {len(block)} days. OFF blocks must be 2–8 days."
                 )
@@ -112,11 +125,11 @@ def validate_pattern_with_reasons(pattern):
             fd_count = block.count(FD)
 
             if fd_count > 0 and last_ra_len is not None:
-                if last_ra_len in (3, 4) and fd_count > 2:
+                if last_ra_len in (3, 4) and fd_count > MAX_FD_AFTER_SHORT_RA_BLOCK:
                     reasons.append(f"After {last_ra_len} RA days, only up to 2 FD are allowed.")
-                elif last_ra_len == 5 and fd_count > 1:
+                elif last_ra_len == 5 and fd_count > MAX_FD_AFTER_FIVE_RA_BLOCK:
                     reasons.append("After 5 RA days, only up to 1 FD is allowed.")
-                elif last_ra_len == 6 and fd_count > 0:
+                elif last_ra_len == 6 and fd_count > MAX_FD_AFTER_SIX_RA_BLOCK:
                     reasons.append("After 6 RA days, FD is not allowed. The next off day must be GD.")
         else:
             i += 1

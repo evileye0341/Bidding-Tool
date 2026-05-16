@@ -105,30 +105,6 @@ def strategy_score_pattern(pattern, requirements, seniority_rank, total_reserves
     return score
 
 
-def award_score_pattern(pattern, requirements, seniority_rank, total_reserves):
-    """
-    Used by Manual Checker.
-
-    Lower score = mathematically easier/stronger bid to be awarded.
-    """
-    difficulty_ranks = rank_day_difficulty(requirements)
-    seniority = seniority_percentile(seniority_rank, total_reserves)
-
-    score = 0
-
-    for i, day in enumerate(pattern):
-        if day == RA:
-            continue
-
-        day_rank = difficulty_ranks[i]
-
-        score += day_rank
-        score += (day_rank ** 2) * seniority
-        score += (day_rank ** 3) * (seniority ** 2) * 0.05
-
-    return score
-
-
 def sort_strategy_patterns(patterns, requirements, seniority_rank, total_reserves):
     return sorted(
         patterns,
@@ -139,19 +115,6 @@ def sort_strategy_patterns(patterns, requirements, seniority_rank, total_reserve
             total_reserves
         )
     )
-
-
-def sort_award_patterns(patterns, requirements, seniority_rank, total_reserves):
-    return sorted(
-        patterns,
-        key=lambda pattern: award_score_pattern(
-            pattern,
-            requirements,
-            seniority_rank,
-            total_reserves
-        )
-    )
-
 
 def sort_patterns_by_preference(
     patterns,
