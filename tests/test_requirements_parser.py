@@ -73,6 +73,28 @@ class RequirementsParserTests(unittest.TestCase):
         self.assertEqual([313, 353], requirements)
         self.assertEqual([], warnings)
 
+    def test_parses_month_day_when_day_number_repeats(self):
+        dates = date_range(date(2026, 1, 31), date(2026, 2, 1))
+
+        requirements, warnings = parse_reserve_requirements(
+            "1/31 250\n2/1 300",
+            dates
+        )
+
+        self.assertEqual([250, 300], requirements)
+        self.assertEqual([], warnings)
+
+    def test_day_only_input_is_ambiguous_when_day_number_repeats(self):
+        dates = date_range(date(2026, 1, 1), date(2026, 2, 1))
+
+        requirements, warnings = parse_reserve_requirements(
+            "1 250",
+            dates
+        )
+
+        self.assertEqual([DEFAULT_REQUIREMENT] * len(dates), requirements)
+        self.assertEqual(1, len(warnings))
+
     def test_detailed_parser_reports_pasted_day_even_when_value_matches_default(self):
         dates = date_range(date(2026, 6, 1), date(2026, 6, 2))
 

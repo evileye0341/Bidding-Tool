@@ -5,7 +5,6 @@ import streamlit as st
 
 from layer_logic import build_layer_layout, off_indexes_for_pattern
 from rules import TOTAL_OFF_DAYS
-from utils import format_date_list
 
 
 WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -38,14 +37,44 @@ def render_layer_styles():
     render_html(
         """
         <style>
-        .layer-summary {
-            border: 1px solid #d6d6cf;
+        .layer-note {
+            color: rgba(250,250,250,0.68);
+            margin: -6px 0 14px;
+        }
+        .layer-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 16px;
+        }
+        .layer-badge {
+            border: 1px solid rgba(49,173,173,0.38);
+            background: rgba(49,173,173,0.12);
+            color: #dffafa;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 0.84rem;
+            font-weight: 850;
+        }
+        .layer-size-card {
+            border: 1px solid rgba(255,255,255,0.10);
             border-radius: 8px;
-            padding: 14px 16px;
-            background: #f1f0eb;
-            color: #111111;
-            margin-bottom: 12px;
-            max-width: 980px;
+            background: #171a21;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+        .layer-size-name {
+            color: rgba(250,250,250,0.68);
+            font-size: 0.82rem;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+        .layer-size-value {
+            color: #fafafa;
+            font-size: 1.18rem;
+            font-weight: 900;
+            text-align: center;
+            padding-top: 0.34rem;
         }
         .layer-overview {
             border: 1px solid #c9cbc7;
@@ -116,24 +145,6 @@ def render_layer_styles():
         .overview-dot.outside {
             background: #b8b8b1;
             border-color: #b8b8b1;
-        }
-        .layer-row-buttons {
-            max-width: 980px;
-            margin-top: -202px;
-            padding: 40px 14px 14px;
-            position: relative;
-            z-index: 2;
-            width: 58px;
-        }
-        .layer-row-buttons div.stButton > button {
-            min-height: 24px !important;
-            height: 24px !important;
-            padding: 0 !important;
-            margin: 0 0 3px !important;
-            border-radius: 5px !important;
-            font-weight: 800 !important;
-            font-size: 0.9rem !important;
-            line-height: 1 !important;
         }
         .bid-layer-panel {
             background: #55564f;
@@ -245,75 +256,45 @@ def render_layer_styles():
     )
 
 
-def render_layer_overview_row(dates, layers, active_layer, layer_number):
-    cells = layer_calendar_cells(dates)
-    date_to_index = {
-        current_date: i
-        for i, current_date in enumerate(dates)
-    }
-    selected = set(layers[layer_number])
-    day_cells = []
+def render_layer_badges(labels):
+    badges = "".join(
+        f'<span class="layer-badge">{label}</span>'
+        for label in labels
+    )
+    render_html(f'<div class="layer-badges">{badges}</div>')
 
-    for current_date in cells:
-        idx = date_to_index.get(current_date)
-        classes = ["overview-dot"]
 
-        if idx is None:
-            classes.append("outside")
-        elif idx in selected:
-            classes.append("selected")
-        elif current_date.weekday() in (5, 6):
-            classes.append("weekend")
+def compact_layer_stepper(label, key, min_value, max_value, default_value):
+    if key not in st.session_state:
+        st.session_state[key] = default_value
 
-        day_cells.append(f'<span class="{" ".join(classes)}"></span>')
-
-    active_class = " active" if layer_number == active_layer else ""
+    value = int(st.session_state[key])
+    value = max(min_value, min(max_value, value))
+    st.session_state[key] = value
 
     render_html(
         f"""
-        <div class="overview-row{active_class}">
-            <div class="overview-label">{layer_number}</div>
-            <div class="overview-cells" style="grid-template-columns: repeat({len(cells)}, minmax(8px, 1fr));">
-                {"".join(day_cells)}
-            </div>
+        <div class="layer-size-card">
+            <div class="layer-size-name">{label}</div>
         </div>
         """
     )
+    minus_col, value_col, plus_col = st.columns([1, 2, 1])
 
+    with minus_col:
+        if st.button("-", key=f"{key}_minus", width="stretch"):
+            st.session_state[key] = max(min_value, value - 1)
+            st.rerun()
 
-def render_layer_overview_header(dates):
-    cells = layer_calendar_cells(dates)
-    date_to_index = {
-        current_date: i
-        for i, current_date in enumerate(dates)
-    }
+    with value_col:
+        render_html(f'<div class="layer-size-value">{st.session_state[key]}</div>')
 
-    week_starts = [
-        current_date.day
-        for current_date in cells
-        if current_date.weekday() == 6 and current_date in date_to_index
-    ]
+    with plus_col:
+        if st.button("+", key=f"{key}_plus", width="stretch"):
+            st.session_state[key] = min(max_value, value + 1)
+            st.rerun()
 
-    if dates[0].day not in week_starts:
-        week_starts.insert(0, dates[0].day)
-
-    if dates[-1].day not in week_starts:
-        week_starts.append(dates[-1].day)
-
-    header = "".join(
-        f"<span>{day}</span>"
-        for day in week_starts
-    )
-
-    render_html(
-        f"""
-        <div class="layer-overview">
-            <div class="overview-month">{dates[0].strftime('%B %Y')}</div>
-            <div class="overview-axis">{header}</div>
-            <div id="layer-overview-rows"></div>
-        </div>
-        """
-    )
+    return int(st.session_state[key])
 
 
 def render_layer_calendar(dates, pattern, requirements, selected_indexes, layer_number):
@@ -380,6 +361,12 @@ def build_suggested_layers(
 ):
     st.header("7-Layer Bid Builder")
     render_layer_styles()
+    render_layer_badges([
+        "Legal",
+        f"{TOTAL_OFF_DAYS} off days",
+        "Carryover checked",
+        "Layer 7 locked",
+    ])
 
     off_indexes = off_indexes_for_pattern(pattern)
 
@@ -399,9 +386,8 @@ def build_suggested_layers(
     if preferred_in_bid:
         st.subheader("Preferred Date Priority")
 
-        st.write(
-            "Choose the order of importance for your preferred dates. "
-            "Higher priority dates are protected earlier in the layer bid."
+        render_html(
+            '<div class="layer-note">Protect the most important dates first.</div>'
         )
 
         available_priority_labels = [
@@ -433,32 +419,35 @@ def build_suggested_layers(
                         ordered_priority_dates.append(idx)
 
     else:
-        st.info(
-            "No preferred dates were selected. "
-            "The app will build the layers by balancing difficulty."
+        render_html(
+            """
+            <div class="empty-state">
+                <strong>No preferred dates selected</strong>
+                Layers will be balanced by date difficulty.
+            </div>
+            """
         )
 
     st.subheader("Layer Sizes")
-
-    st.write(
-        "Enter requested sizes for Layers 1-5. "
-        f"Layer 6 automatically becomes whatever is left so Layers 1-6 always use all {TOTAL_OFF_DAYS} dates. "
-        f"Layer 7 is locked and always shows the full {TOTAL_OFF_DAYS}-day bid."
+    render_html(
+        f'<div class="layer-note">Set Layers 1-5. Layer 6 fills the remaining dates. Layer 7 stays locked at {TOTAL_OFF_DAYS}.</div>'
     )
 
     requested_sizes = {}
 
-    for layer_number in range(1, 6):
-        requested_sizes[layer_number] = st.number_input(
-            f"Layer {layer_number} requested size",
-            min_value=0,
-            max_value=TOTAL_OFF_DAYS,
-            value=2,
-            step=1,
-            key=f"layer_size_{layer_number}"
-        )
+    layer_size_columns = st.columns(5)
 
-    layers, final_sizes = build_layer_layout(
+    for layer_number, column in enumerate(layer_size_columns, start=1):
+        with column:
+            requested_sizes[layer_number] = compact_layer_stepper(
+                f"Layer {layer_number}",
+                f"layer_size_{layer_number}",
+                0,
+                TOTAL_OFF_DAYS,
+                2
+            )
+
+    layers, _ = build_layer_layout(
         pattern,
         requirements,
         ordered_priority_dates,
@@ -556,8 +545,5 @@ def build_suggested_layers(
     )
 
     st.caption(
-        "Preferred dates are placed first in your selected priority order. "
-        "The remaining dates are balanced so harder dates are spread across the layers instead of being stacked together. "
-        f"Layers 1-6 always use all {TOTAL_OFF_DAYS} dates exactly once. "
-        f"Layer 7 always contains the full {TOTAL_OFF_DAYS}-day bid."
+        "Preferred dates are placed first. Remaining dates are balanced by difficulty across Layers 1-6."
     )

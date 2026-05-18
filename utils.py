@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from rules import TOTAL_OFF_DAYS
 
@@ -12,34 +12,6 @@ def date_range(start_date, end_date):
         current += timedelta(days=1)
 
     return dates
-
-
-def first_day_next_month():
-    today = date.today()
-
-    if today.month == 12:
-        return date(today.year + 1, 1, 1)
-
-    return date(today.year, today.month + 1, 1)
-
-
-def last_day_same_month(start):
-    if start.month == 12:
-        next_month = date(start.year + 1, 1, 1)
-    else:
-        next_month = date(start.year, start.month + 1, 1)
-
-    return next_month - timedelta(days=1)
-
-
-def format_date_list(dates, indexes):
-    if not indexes:
-        return "blank"
-
-    return ", ".join(
-        dates[i].strftime("%b %d")
-        for i in indexes
-    )
 
 
 def normalize_layer_sizes(requested_sizes):

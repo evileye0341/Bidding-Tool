@@ -58,7 +58,7 @@ def validate_pattern_with_reasons(pattern):
 
             if not (MIN_RA_BLOCK <= count <= MAX_RA_BLOCK):
                 reasons.append(
-                    f"ON block from day {start + 1} to day {i} is {count} days. ON blocks must be 3–6 days."
+                    f"ON block from day {start + 1} to day {i} is {count} days. ON blocks must be 3-6 days."
                 )
         else:
             i += 1
@@ -74,7 +74,7 @@ def validate_pattern_with_reasons(pattern):
 
             if not (MIN_OFF_BLOCK <= len(block) <= MAX_OFF_BLOCK):
                 reasons.append(
-                    f"OFF block from day {start + 1} to day {i} is {len(block)} days. OFF blocks must be 2–8 days."
+                    f"OFF block from day {start + 1} to day {i} is {len(block)} days. OFF blocks must be 2-8 days."
                 )
 
             if FD in block:
